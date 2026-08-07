@@ -1,80 +1,283 @@
-# Network Scanner
+# 🔎 Network Scanner
 
-A Python-based network scanner built as a learning project to explore IP addressing, TCP sockets, ARP discovery, and network scanning with Scapy.
+> A small network scanner built from scratch in Python — partly to make something useful, and mostly to understand what the hell is actually happening underneath network scanning tools.
 
-## Features
+![Network Scanner Demo](assets/demo.gif)
 
-### IP scanning
+---
 
-Scan a single IPv4/IPv6 address and check selected TCP ports.
+## 🧠 Why I made this
 
-The scanner reports four possible states:
+I wanted to understand networking beyond just knowing that an IP address is an IP address.
 
-* **OPEN** — a TCP connection was successfully established.
-* **CLOSED** — the host responded, but no service is listening on the port.
-* **TIMEOUT** — no response was received before the timeout expired.
-* **ERROR** — an unexpected error occurred while scanning the port.
+So instead of immediately reaching for an existing scanner, I decided to build one myself.
 
-Example:
+The project started with a very simple question:
 
 ```text
+"Can I connect to this port?"
+```
+
+That eventually turned into:
+
+```text
+IP address
+    ↓
+TCP connection
+    ↓
+Port status
+```
+
+Then I wanted to scan an entire network:
+
+```text
+Subnet
+    ↓
+ARP discovery
+    ↓
+Active hosts
+    ↓
+TCP ports
+    ↓
+Results
+```
+
+And now I'm slowly turning that into a proper little network scanner.
+
+This project is primarily a learning exercise, but I'm trying to keep the code organized enough that it could eventually become a genuinely useful tool.
+
+---
+
+## 🎥 Demo
+
+### Single IP
+
+![IP Scan Demo](assets/ip-scan.gif)
+
+```text
+$ python main.py --ip 192.168.1.58
+
+Enter ports separated by commas (e.g. 80, 443): 22,80,8001
+
 Port | Status
 -----+--------
 22   | OPEN
-80   | CLOSED
-443  | TIMEOUT
+80   | OPEN
+8001 | CLOSED
 ```
 
-### Subnet scanning
+### Subnet discovery
 
-Scan a local subnet using ARP to discover active hosts.
-
-Once active hosts have been discovered, the scanner checks the ports selected by the user against each host.
-
-Example:
+![Subnet Scan Demo](assets/subnet-scan.gif)
 
 ```text
+$ sudo python main.py --subnet 192.168.1.0/24
+
 Host             Port   Status
 --------------------------------
 192.168.1.13     22     CLOSED
 192.168.1.13     80     OPEN
-192.168.1.254    22     TIMEOUT
 192.168.1.58     22     OPEN
+192.168.1.100    80     TIMEOUT
 ```
 
-### Port validation
+---
 
-Ports are validated to ensure they are within the valid TCP port range:
+# ⚙️ What it can do
 
-```text
-1 - 65535
-```
+### 🎯 Scan a single IP
 
-Invalid ports are rejected before scanning begins.
+Give the scanner an IP address and choose the TCP ports you want to test.
 
-### Subnet validation
+It distinguishes between:
 
-Subnets are validated using Python's `ipaddress` module.
+| Status         | Meaning                                       |
+| -------------- | --------------------------------------------- |
+| 🟢 **OPEN**    | A TCP connection was successfully established |
+| 🔴 **CLOSED**  | The host responded, but nothing is listening  |
+| 🟡 **TIMEOUT** | No response was received before the timeout   |
+| ⚠️ **ERROR**   | Something unexpected went wrong               |
+
+---
+
+### 🌐 Scan a subnet
+
+The subnet scanner uses **ARP** to discover active hosts on the local network.
 
 For example:
 
 ```text
-192.168.1.42/24
+192.168.1.0/24
+        ↓
+   ARP discovery
+        ↓
+ ┌───────────────┐
+ │ 192.168.1.13  │
+ │ 192.168.1.58  │
+ │ 192.168.1.100 │
+ │ 192.168.1.254 │
+ └───────────────┘
+        ↓
+    Port scanning
 ```
 
-is interpreted as:
+The user chooses the ports **once**, and those ports are then checked against every discovered host.
+
+---
+
+# 🛠️ Under the hood
+
+This project intentionally uses relatively low-level Python networking functionality instead of relying on an existing port-scanning library.
+
+### `socket`
+
+Used for TCP connections:
+
+```python
+sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+sock.settimeout(TIMEOUT)
+sock.connect((ip, port))
+```
+
+This is the part that actually asks:
+
+> "Can I establish a TCP connection to this IP and port?"
+
+---
+
+### `ipaddress`
+
+Used to validate and manipulate addresses and networks:
+
+```python
+ipaddress.ip_address(ip)
+```
+
+and:
+
+```python
+ipaddress.ip_network(subnet, strict=False)
+```
+
+This handles things such as:
 
 ```text
+192.168.1.42/24
+        ↓
 192.168.1.0/24
 ```
 
-using non-strict network parsing.
+---
 
-## Requirements
+### Scapy
+
+Scapy is used for ARP-based host discovery.
+
+The subnet scanner essentially builds an Ethernet + ARP packet:
+
+```python
+Ether(dst="ff:ff:ff:ff:ff:ff") / ARP(pdst=str(network))
+```
+
+and sends it over the network.
+
+The hosts that answer are then passed to the TCP scanner.
+
+---
+
+# 🗂️ Project structure
+
+```text
+Network-Scanner/
+│
+├── main.py
+├── ip.py
+├── subnet.py
+├── host.py
+│
+├── assets/
+│   ├── demo.gif
+│   ├── ip-scan.gif
+│   └── subnet-scan.gif
+│
+└── README.md
+```
+
+### `main.py`
+
+The entry point.
+
+Responsible for interpreting command-line arguments and deciding which scanner to run.
+
+### `ip.py`
+
+Single-IP scanning.
+
+Contains:
+
+* IP validation
+* Port validation
+* TCP connections
+* Timeout handling
+* Port status enum
+* IP scan output
+
+### `subnet.py`
+
+Local network scanning.
+
+Contains:
+
+* Subnet validation
+* ARP host discovery
+* Multi-host scanning
+* Subnet result formatting
+
+### `host.py`
+
+🚧 **Work in progress**
+
+The plan is to resolve a hostname into an IP address and then reuse the existing IP scanning functionality.
+
+---
+
+# 🚀 Usage
+
+## Help
+
+```bash
+python main.py --help
+```
+
+## Scan an IP
+
+```bash
+python main.py --ip 192.168.1.58
+```
+
+Then select the ports:
+
+```text
+Enter ports separated by commas (e.g. 80, 443): 22,80,443
+```
+
+## Scan a subnet
+
+ARP scanning requires elevated privileges on many Linux systems:
+
+```bash
+sudo python main.py --subnet 192.168.1.0/24
+```
+
+Then choose the ports to scan.
+
+---
+
+# 📦 Requirements
 
 * Python 3.10+
 * Scapy
-* Linux or another operating system capable of performing the required network operations
+* A system capable of sending ARP packets
 
 Install Scapy with:
 
@@ -82,170 +285,47 @@ Install Scapy with:
 pip install scapy
 ```
 
-Depending on your operating system and network configuration, ARP scanning may require elevated privileges.
-
-For example on Linux:
+On Linux, subnet discovery may require:
 
 ```bash
 sudo python main.py --subnet 192.168.1.0/24
 ```
 
-## Usage
+---
 
-Display the help message:
+# 🧪 What I've learned building this
 
-```bash
-python main.py --help
-```
+This project has been a way of learning by actually breaking things and figuring out why they broke.
 
-### Scan a single IP
+Some of the concepts I've worked through:
 
-```bash
-python main.py --ip 192.168.1.58
-```
-
-The program will ask which ports to scan:
-
-```text
-Enter ports separated by commas (e.g. 80, 443): 22,80,443
-```
-
-### Scan a subnet
-
-```bash
-sudo python main.py --subnet 192.168.1.0/24
-```
-
-The scanner first discovers active hosts using ARP and then asks which ports to scan.
-
-## Project structure
-
-The project is split into separate modules to keep the different scanning methods independent:
-
-```text
-Network-Scanner/
-├── main.py
-├── ip.py
-├── subnet.py
-├── host.py
-└── README.md
-```
-
-Current modules:
-
-### `main.py`
-
-Handles command-line arguments and selects the appropriate scanning mode.
-
-### `ip.py`
-
-Contains functionality for scanning a single IP address, including:
-
-* Port validation
-* TCP connections
-* Timeout handling
-* Port status tracking
-* IP scan result formatting
-
-### `subnet.py`
-
-Contains functionality for:
-
-* Subnet validation
-* ARP host discovery
-* Scanning discovered hosts
-* Subnet result formatting
-
-### `host.py`
-
-Reserved for hostname scanning.
-
-The hostname functionality is currently under development.
-
-## How it works
-
-### Single IP scan
-
-```text
-IP address
-    ↓
-Validate IP
-    ↓
-Ask for ports
-    ↓
-Validate ports
-    ↓
-Create TCP socket
-    ↓
-Attempt connection
-    ↓
-OPEN / CLOSED / TIMEOUT / ERROR
-```
-
-### Subnet scan
-
-```text
-Subnet
-    ↓
-Validate subnet
-    ↓
-ARP discovery
-    ↓
-Find active hosts
-    ↓
-Ask for ports
-    ↓
-Scan each host
-    ↓
-OPEN / CLOSED / TIMEOUT / ERROR
-```
-
-## Technologies
-
-This project uses:
-
-* **Python**
-* `socket` — TCP connections and hostname/IP networking
-* `ipaddress` — IP address and subnet validation
-* **Scapy** — ARP-based host discovery
-* `enum.Enum` — representing port scan states
-
-## Learning goals
-
-This project is primarily intended as a learning exercise.
-
-It covers concepts including:
-
-* IPv4/IPv6 addressing
+* IPv4 addresses
 * CIDR notation
-* Subnets and network ranges
-* TCP connections
+* Subnet masks
+* Network and broadcast addresses
+* TCP sockets
 * TCP ports
 * Socket timeouts
 * Exception handling
 * ARP
+* Ethernet frames
 * Host discovery
-* DNS/hostname resolution
-* Python modules and project organization
+* DNS / hostname resolution
+* Python modules
 * Command-line arguments
+* Structuring a multi-file Python project
 
-## Limitations
+One of the more useful lessons has been realizing that something as simple as:
 
-The subnet scanner uses ARP, so it is intended for discovering hosts on the local network. ARP does not provide general discovery of hosts across the Internet or through routers.
+```python
+sock.connect((ip, port))
+```
 
-The scanner currently performs TCP connection checks rather than a full service/version detection scan.
+actually involves quite a lot of networking underneath it.
 
-Large networks can result in a significant number of packets and may take longer to scan.
+---
 
-## Legal and ethical use
-
-Only scan systems and networks that you own or have explicit permission to test.
-
-Network scanning can generate traffic and may trigger security systems or intrusion detection mechanisms on networks you do not control.
-
-## Project status
-
-Current:
+# 🛣️ Roadmap
 
 * [x] Single IP scanning
 * [x] TCP port scanning
@@ -254,7 +334,37 @@ Current:
 * [x] Error handling
 * [x] Subnet validation
 * [x] ARP host discovery
-* [x] Multi-host subnet port scanning
+* [x] Multi-host subnet scanning
 * [ ] Hostname scanning
-* [ ] Further CLI improvements
-* [ ] Additional performance improvements
+* [ ] Improve CLI
+* [ ] Better error messages
+* [ ] Improve scan performance
+* [ ] More flexible port selection
+* [ ] More polished output
+
+---
+
+# ⚠️ Disclaimer
+
+This project is intended for **educational purposes and authorized network testing**.
+
+Only scan machines and networks that you own or have explicit permission to test.
+
+Network scanning can generate traffic and may trigger firewalls, intrusion detection systems, or other security mechanisms.
+
+Don't point it at random networks just because you can.
+
+---
+
+## 📚 Built with
+
+🐍 **Python**
+⚡ **Scapy**
+🔌 **Python sockets**
+🌐 **ipaddress**
+
+---
+
+> *Started as "I wonder how port scanning actually works."*
+>
+> *Currently somewhere between "I understand it" and "why is this packet doing that?"*
