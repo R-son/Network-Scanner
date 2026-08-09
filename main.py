@@ -1,6 +1,7 @@
 import sys
 from ip import ip_scan
 from subnet import subnet_scan
+from host import resolve_host
 
 def help() :
     print("Usage: py main.py <flag> <arguments>")
@@ -33,7 +34,11 @@ match sys.argv[1]:
             usage()
             sys.exit(1)
         results = subnet_scan(sys.argv[2])
-    # case "--host":
+    case "--host":
+        if (arg_length < 3):
+            usage()
+            sys.exit(1)
+        resolve_host(sys.argv[2])
     case _:
         print("Unknown option")
         usage()

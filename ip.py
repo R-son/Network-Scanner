@@ -11,6 +11,7 @@ class port_status(Enum) :
     ERROR = 4
 
 def print_ip_results(results) :
+    
     print("Port | Status")
     print("-----+--------")
 
@@ -44,16 +45,37 @@ def ip_scan(ip) :
         print("Error:", e)
         sys.exit(1)
 
-def connect(ip, port) :
-    try :
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock :
-            sock.settimeout(TIMEOUT)
-            # raise socket.timeout()
-            # raise RuntimeError("Test error")
-            sock.connect((ip, port))
-            print("Port {} is open".format(port))
-            return port_status.OPEN
+# def connect(ip, port) :
+#     try :
+#         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock :
+#             sock.settimeout(TIMEOUT)
+#             # raise socket.timeout()
+#             # raise RuntimeError("Test error")
+#             sock.connect((ip, port))
+#             print("Port {} is open".format(port))
+#             return port_status.OPEN
             
+#     except socket.timeout:
+#         print(f"Port {port} timed out")
+#         return port_status.TIMEOUT
+
+#     except ConnectionRefusedError:
+#         print(f"Port {port} is closed")
+#         return port_status.CLOSED
+
+#     except OSError as e:
+#         print(f"Error scanning port {port}: {e}")
+#         return port_status.ERROR
+
+def connect(ip, port, family=socket.AF_INET):
+    try:
+        with socket.socket(family, socket.SOCK_STREAM) as sock:
+            sock.settimeout(TIMEOUT)
+            sock.connect((ip, port))
+
+            print(f"Port {port} is open")
+            return port_status.OPEN
+
     except socket.timeout:
         print(f"Port {port} timed out")
         return port_status.TIMEOUT
